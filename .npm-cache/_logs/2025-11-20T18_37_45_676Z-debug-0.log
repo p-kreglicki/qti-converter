@@ -1,0 +1,22 @@
+0 verbose cli /usr/local/bin/node /usr/local/lib/node_modules/npm/bin/npm-cli.js
+1 info using npm@10.9.3
+2 info using node@v22.18.0
+3 silly config load:file:/usr/local/lib/node_modules/npm/npmrc
+4 silly config load:file:/Users/piotrkreglicki/Projects/qti-converter/.npmrc
+5 silly config load:file:/Users/piotrkreglicki/.npmrc
+6 silly config load:file:/usr/local/etc/npmrc
+7 verbose title npm exec shadcn@latest add button input label card alert sonner --yes
+8 verbose argv "exec" "--" "shadcn@latest" "add" "button" "input" "label" "card" "alert" "sonner" "--yes"
+9 verbose logfile logs-max:10 dir:/Users/piotrkreglicki/Projects/qti-converter/.npm-cache/_logs/2025-11-20T18_37_45_676Z-
+10 verbose logfile /Users/piotrkreglicki/Projects/qti-converter/.npm-cache/_logs/2025-11-20T18_37_45_676Z-debug-0.log
+11 silly logfile done cleaning log files
+12 silly packumentCache heap:4345298944 maxSize:1086324736 maxEntrySize:543162368
+13 http fetch GET 200 https://registry.npmjs.org/shadcn 141ms (cache revalidated)
+14 silly packumentCache heap:4345298944 maxSize:1086324736 maxEntrySize:543162368
+15 silly packumentCache heap:4345298944 maxSize:1086324736 maxEntrySize:543162368
+16 verbose cwd /Users/piotrkreglicki/Projects/qti-converter
+17 verbose os Darwin 24.6.0
+18 verbose node v22.18.0
+19 verbose npm  v10.9.3
+20 verbose exit 0
+21 info ok

@@ -1,0 +1,5 @@
+id,name,email,phone,ssn,credit_card,ip_address,notes
+1,John Doe,john.doe@example.com,123-456-7890,123-45-6789,1234-5678-9012-3456,192.168.1.1,User with all PII
+2,Jane Smith,jane.smith@work.org,(555) 123-4567,987-65-4321,4111 1111 1111 1111,10.0.0.1,Another user
+3,Bob Jones,bob@gmail.com,+1 555 555 5555,111-22-3333,4444-4444-4444-4444,172.16.0.1,Test case 3
+4,No PII,none@none.com,555-1234,,,,,Partial PII

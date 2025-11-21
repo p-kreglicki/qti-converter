@@ -75,6 +75,7 @@ export async function getUserConversions(userId: string, client?: SupabaseClient
         .from('conversions')
         .select('*')
         .eq('user_id', userId)
+        .is('deleted_at', null)
         .order('created_at', { ascending: false });
 
     if (error) throw error;
@@ -126,15 +127,24 @@ export async function deleteConversion(conversionId: string) {
     if (error) throw error;
 }
 
-export async function softDeleteConversion(conversionId: string) {
-    const { data, error } = await supabase
+export async function softDeleteConversion(conversionId: string, client?: any) {
+    const supabaseClient = client || supabase;
+    const { data, error } = await supabaseClient
         .from('conversions')
         .update({ deleted_at: new Date().toISOString() })
         .eq('id', conversionId)
         .select()
-        .single();
+        .maybeSingle();
 
-    if (error) throw error;
+    if (error) {
+        console.error('Error soft deleting conversion:', error);
+        throw error;
+    }
+
+    if (!data) {
+        throw new Error('Conversion not found or already deleted');
+    }
+
     return data as Conversion;
 }
 
@@ -243,8 +253,9 @@ export async function createExport(exportData: ExportInsert) {
 
 // Audit Log Queries
 
-export async function createAuditLog(log: AuditLogInsert) {
-    const { data, error } = await supabase
+export async function createAuditLog(log: AuditLogInsert, client?: any) {
+    const supabaseClient = client || supabase;
+    const { data, error } = await supabaseClient
         .from('audit_logs')
         .insert(log)
         .select()
@@ -324,4 +335,58 @@ export async function incrementUsage(
             ai_enhancements_used: aiEnhancementsUsed,
         });
     }
+}
+
+/**
+ * Get all expired conversions that haven't been deleted yet
+ */
+export async function getExpiredConversions(
+    client: any
+) {
+    const { data, error } = await client
+        .from('conversions')
+        .select('*')
+        .is('deleted_at', null)
+        .lt('expires_at', new Date().toISOString());
+
+    if (error) throw error;
+    return data as Conversion[];
+}
+
+/**
+ * Get a conversion with all its export files
+ */
+export async function getConversionWithExports(
+    conversionId: string,
+    client: any
+) {
+    const { data: conversion, error: conversionError } = await client
+        .from('conversions')
+        .select('*')
+        .eq('id', conversionId)
+        .maybeSingle();
+
+    if (conversionError) {
+        console.error('Error fetching conversion:', conversionError);
+        throw conversionError;
+    }
+
+    if (!conversion) {
+        throw new Error('Conversion not found');
+    }
+
+    const { data: exports, error: exportsError } = await client
+        .from('exports')
+        .select('*')
+        .eq('conversion_id', conversionId);
+
+    if (exportsError) {
+        console.error('Error fetching exports:', exportsError);
+        throw exportsError;
+    }
+
+    return {
+        conversion: conversion as Conversion,
+        exports: (exports || []) as Export[]
+    };
 }

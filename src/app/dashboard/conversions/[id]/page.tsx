@@ -8,6 +8,8 @@ import { ArrowLeft, Download, FileText, ShieldAlert, Sparkles } from "lucide-rea
 import Link from "next/link";
 import { QuestionList } from "@/components/questions/question-list";
 import { ExportModal } from "@/components/export/export-modal";
+import { DeleteButton } from "@/components/conversions/delete-button";
+import { ExpirationTimer } from "@/components/conversions/expiration-timer";
 
 export default async function ConversionPage({ params }: { params: Promise<{ id: string }> }) {
     const { id } = await params;
@@ -64,9 +66,12 @@ export default async function ConversionPage({ params }: { params: Promise<{ id:
                                     {conversion.file_type}
                                 </Badge>
                             </h2>
-                            <p className="text-sm text-muted-foreground">
-                                {questions.length} questions • Created {new Date(conversion.created_at).toLocaleDateString()}
-                            </p>
+                            <div className="flex items-center gap-3 mt-1">
+                                <p className="text-sm text-muted-foreground">
+                                    {questions.length} questions • Created {new Date(conversion.created_at).toLocaleDateString()}
+                                </p>
+                                <ExpirationTimer expiresAt={conversion.expires_at} />
+                            </div>
                         </div>
                     </div>
                     <div className="flex items-center space-x-2">
@@ -75,6 +80,11 @@ export default async function ConversionPage({ params }: { params: Promise<{ id:
                             AI Enhance
                         </Button>
                         <ExportModal conversionId={id} />
+                        <DeleteButton
+                            conversionId={id}
+                            conversionTitle={conversion.title}
+                            variant="outline"
+                        />
                     </div>
                 </div>
 

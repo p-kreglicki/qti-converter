@@ -161,8 +161,10 @@ export type ExportInsert = Omit<Export, 'id' | 'created_at'> & {
     id?: string;
 };
 
-export type AuditLogInsert = Omit<AuditLog, 'id' | 'created_at'> & {
+export type AuditLogInsert = Omit<AuditLog, 'id' | 'created_at' | 'ip_address' | 'user_agent'> & {
     id?: string;
+    ip_address?: string | null;
+    user_agent?: string | null;
 };
 
 export type UsageTrackingInsert = Omit<UsageTracking, 'id' | 'created_at' | 'updated_at'> & {

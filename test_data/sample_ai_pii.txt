@@ -1,0 +1,6 @@
+Patient Report:
+Patient Name: Sarah Connor
+Address: 123 Terminator Lane, Los Angeles, CA 90001
+Diagnosis: The patient, Sarah, has been diagnosed with severe anxiety and paranoia regarding future events.
+She works as a Waitress at Big Jeff's.
+Her emergency contact is Kyle Reese.

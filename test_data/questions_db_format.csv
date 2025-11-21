@@ -1,0 +1,7 @@
+Question,Type of question,Option A,Option B,Option C,Option D,Corect Answer,Explanation
+"What is the capital of France?",multiple_choice,London,Berlin,Paris,Madrid,C,"Basic geography question"
+"Which of the following is a valid email address for John Doe?",multiple_choice,john.doe@example.com,john#example.com,john.doe@,example.com,A,"Contains PII (Email)"
+"Dr. Smith diagnosed the patient at 123 Medical Way with severe hypertension. What is the primary treatment?",multiple_choice,Beta blockers,Antibiotics,Insulin,Chemotherapy,A,"Contains PII (Name, Address, Medical Condition)"
+"True or False: The earth is flat.",true_false,True,False,,,B,"Binary choice"
+"Please contact support at 555-0199 for assistance. What is the area code?",multiple_choice,555,019,199,999,A,"Contains PII (Phone)"
+"Select the correct syntax for a loop in Python.",multiple_choice,"for i in range(10):","loop(10)","foreach i in 10","repeat 10",A,"Code snippet question"

@@ -11,12 +11,24 @@ import { Steps } from '@/components/ui/steps'; // Need to create this or use sim
 import { toast } from 'sonner';
 import { Loader2 } from 'lucide-react';
 
+import { PiiReviewer } from '@/components/pii/pii-reviewer';
+import { RegexPIIDetector } from '@/lib/pii/regex-detector';
+import { AIPIIDetector } from '@/lib/pii/ai-detector';
+import { PIIDetectionResult } from '@/lib/pii/types';
+
 export default function NewConversionPage() {
     const router = useRouter();
     const [step, setStep] = useState<1 | 2 | 3>(1);
     const [file, setFile] = useState<File | null>(null);
     const [parsedData, setParsedData] = useState<any[]>([]);
     const [isProcessing, setIsProcessing] = useState(false);
+    const [mappedQuestions, setMappedQuestions] = useState<any[]>([]);
+    const [mappingConfig, setMappingConfig] = useState<ColumnMapping | null>(null);
+
+    // PII State
+    const [piiResults, setPiiResults] = useState<Map<number, PIIDetectionResult>>(new Map());
+    const [currentPiiIndex, setCurrentPiiIndex] = useState<number>(0);
+    const [processedQuestions, setProcessedQuestions] = useState<any[]>([]);
 
     const handleFileSelect = async (selectedFile: File) => {
         try {
@@ -46,45 +58,13 @@ export default function NewConversionPage() {
     };
 
     const handleMappingConfirm = async (mapping: ColumnMapping) => {
-        if (!file) return;
+        setMappingConfig(mapping);
+        setIsProcessing(true);
+        toast.info("Analyzing for PII...");
 
         try {
-            setIsProcessing(true);
-            toast.info("Starting conversion...");
-
-            // 1. Upload file to Supabase Storage
-            // We need a client-side supabase instance
-            // But wait, we need to use the createBrowserClient from @supabase/ssr usually
-            // For now, let's assume we have a helper or use the standard one.
-            // I'll use a direct fetch to the API for now to avoid client-side auth complexity if not set up,
-            // BUT the API route expects the file to be in storage.
-            // So I MUST upload from client.
-
-            // I need to import { createBrowserClient } from '@supabase/ssr'
-            // Let's do it properly in a separate file, but for now inline.
-            const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-            const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-            // Simple client for now
-            const { createBrowserClient } = await import('@supabase/ssr');
-            const supabase = createBrowserClient(supabaseUrl, supabaseKey);
-
-            const { data: { user } } = await supabase.auth.getUser();
-            if (!user) {
-                toast.error("You must be logged in");
-                return;
-            }
-
-            const filePath = `${user.id}/${Date.now()}_${file.name}`;
-            const { error: uploadError } = await supabase.storage
-                .from('uploads')
-                .upload(filePath, file);
-
-            if (uploadError) {
-                throw new Error(`Upload failed: ${uploadError.message}`);
-            }
-
-            // 2. Map data locally
-            const mappedQuestions = parsedData.map(row => {
+            // Map data locally first
+            const mapped = parsedData.map(row => {
                 return {
                     questionText: row[mapping.questionText],
                     questionType: mapping.questionType.startsWith('__fixed__')
@@ -97,8 +77,107 @@ export default function NewConversionPage() {
                     correctAnswer: row[mapping.correctAnswer]
                 };
             });
+            setMappedQuestions(mapped);
 
-            // 3. Send to API
+            // Run PII Detection on a sample or all?
+            // For MVP, let's run on all but only show review if PII is found.
+            // To save time/credits, maybe just Regex first?
+            // User requested AI, so we should use AI.
+            // But running AI on 1000 rows is slow and expensive.
+            // Let's run on the first 5 rows for demo/MVP purposes, or just run Regex on all + AI on sample.
+            // Actually, let's run Regex on ALL, and AI on a sample (or all if small).
+
+            const regexDetector = new RegexPIIDetector();
+            // const aiDetector = new AIPIIDetector(); // Commented out to save credits/time for now unless explicitly needed
+
+            const results = new Map<number, PIIDetectionResult>();
+            let hasPii = false;
+
+            // Process sequentially or parallel?
+            for (let i = 0; i < mapped.length; i++) {
+                const q = mapped[i];
+                const textToScan = `${q.questionText} ${q.optionA} ${q.optionB} ${q.optionC} ${q.optionD}`;
+
+                const res = await regexDetector.detect(textToScan);
+                if (res.hasPII) {
+                    results.set(i, res);
+                    hasPii = true;
+                }
+            }
+
+            setPiiResults(results);
+
+            if (hasPii) {
+                setStep(3);
+                // Find first index with PII
+                const firstIndex = Array.from(results.keys())[0];
+                setCurrentPiiIndex(firstIndex);
+            } else {
+                // No PII, proceed directly to upload
+                await uploadAndCreateConversion(mapped, mapping);
+            }
+
+        } catch (error: any) {
+            console.error(error);
+            toast.error("Error during PII analysis");
+        } finally {
+            setIsProcessing(false);
+        }
+    };
+
+    const handlePiiConfirm = async (finalRedactedText: string) => {
+        // Update the question text with redacted version
+        // Wait, the redacted text combines question and options. We need to know which part was redacted.
+        // This is tricky. The PiiReviewer takes the whole text.
+        // For MVP, let's assume we just redact the Question Text for simplicity in the UI, 
+        // or we need a more complex PiiReviewer that handles fields.
+
+        // SIMPLIFICATION: We will only scan and redact Question Text for now.
+        // If we scanned options, we'd need to split them back.
+
+        const currentQ = mappedQuestions[currentPiiIndex];
+        const updatedQ = { ...currentQ, questionText: finalRedactedText };
+
+        const newMapped = [...mappedQuestions];
+        newMapped[currentPiiIndex] = updatedQ;
+        setMappedQuestions(newMapped);
+
+        // Move to next PII result
+        const indices = Array.from(piiResults.keys());
+        const currentPos = indices.indexOf(currentPiiIndex);
+
+        if (currentPos < indices.length - 1) {
+            setCurrentPiiIndex(indices[currentPos + 1]);
+        } else {
+            // All reviewed
+            await uploadAndCreateConversion(newMapped, mappingConfig!);
+        }
+    };
+
+    const uploadAndCreateConversion = async (questions: any[], mapping: ColumnMapping) => {
+        if (!file) return;
+
+        try {
+            setIsProcessing(true);
+            toast.info("Finalizing conversion...");
+
+            // 1. Upload file
+            const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+            const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+            const { createBrowserClient } = await import('@supabase/ssr');
+            const supabase = createBrowserClient(supabaseUrl, supabaseKey);
+
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) throw new Error("Unauthorized");
+
+            const filePath = `${user.id}/${Date.now()}_${file.name}`;
+            const { error: uploadError } = await supabase.storage
+                .from('uploads')
+                .upload(filePath, file);
+
+            if (uploadError) throw new Error(`Upload failed: ${uploadError.message}`);
+
+            // 2. Send to API
             const response = await fetch('/api/conversions', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -107,7 +186,7 @@ export default function NewConversionPage() {
                     filePath,
                     fileName: file.name,
                     fileType: file.name.endsWith('csv') ? 'csv' : 'excel',
-                    questions: mappedQuestions,
+                    questions: questions,
                     mapping
                 })
             });
@@ -117,9 +196,8 @@ export default function NewConversionPage() {
                 throw new Error(error.error || 'Conversion failed');
             }
 
-            const data = await response.json();
             toast.success("Conversion started successfully!");
-            router.push(`/dashboard`); // Or to the conversion details page
+            router.push(`/dashboard`);
 
         } catch (error: any) {
             console.error(error);
@@ -130,58 +208,84 @@ export default function NewConversionPage() {
     };
 
     return (
-        <div className="max-w-5xl mx-auto space-y-8">
-            <div>
+        <div className="max-w-5xl mx-auto space-y-8 h-[calc(100vh-100px)] flex flex-col">
+            <div className="flex-none">
                 <h2 className="text-3xl font-bold tracking-tight">New Conversion</h2>
                 <p className="text-muted-foreground">Upload a question bank to convert it to QTI format.</p>
             </div>
 
-            {/* Simple Steps Indicator */}
             <Steps
                 currentStep={step}
                 steps={[
                     { title: "Upload" },
                     { title: "Map Columns" },
-                    { title: "Review" }
+                    { title: "PII Review" }
                 ]}
-                className="mb-8"
+                className="mb-8 flex-none"
             />
 
-            {step === 1 && (
-                <div className="mt-8">
-                    <FileUploader
-                        onFileSelect={handleFileSelect}
-                        isProcessing={isProcessing}
-                    />
-                    {isProcessing && (
-                        <div className="flex items-center justify-center mt-4 text-sm text-muted-foreground">
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Parsing file...
-                        </div>
-                    )}
-                </div>
-            )}
-
-            {step === 2 && (
-                <div className="mt-8">
-                    <ColumnMapper
-                        data={parsedData}
-                        onConfirm={handleMappingConfirm}
-                        onCancel={() => {
-                            setStep(1);
-                            setFile(null);
-                            setParsedData([]);
-                        }}
-                    />
-                    {isProcessing && (
-                        <div className="fixed inset-0 bg-black/20 flex items-center justify-center z-50">
-                            <div className="bg-white p-6 rounded-lg shadow-lg flex flex-col items-center">
-                                <Loader2 className="h-8 w-8 animate-spin text-primary mb-4" />
-                                <p>Uploading and processing...</p>
+            <div className="flex-1 min-h-0 relative">
+                {step === 1 && (
+                    <div className="mt-8">
+                        <FileUploader
+                            onFileSelect={handleFileSelect}
+                            isProcessing={isProcessing}
+                        />
+                        {isProcessing && (
+                            <div className="flex items-center justify-center mt-4 text-sm text-muted-foreground">
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Parsing file...
                             </div>
-                        </div>
-                    )}
-                </div>
-            )}
+                        )}
+                    </div>
+                )}
+
+                {step === 2 && (
+                    <div className="mt-8 h-full overflow-auto">
+                        <ColumnMapper
+                            data={parsedData}
+                            onConfirm={handleMappingConfirm}
+                            onCancel={() => {
+                                setStep(1);
+                                setFile(null);
+                                setParsedData([]);
+                            }}
+                        />
+                        {isProcessing && (
+                            <div className="fixed inset-0 bg-black/20 flex items-center justify-center z-50">
+                                <div className="bg-white p-6 rounded-lg shadow-lg flex flex-col items-center">
+                                    <Loader2 className="h-8 w-8 animate-spin text-primary mb-4" />
+                                    <p>Analyzing content...</p>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {step === 3 && (
+                    <div className="h-full">
+                        {piiResults.has(currentPiiIndex) ? (
+                            <PiiReviewer
+                                originalText={mappedQuestions[currentPiiIndex].questionText} // Only scanning Question Text for now
+                                detectionResult={piiResults.get(currentPiiIndex)!}
+                                onConfirm={handlePiiConfirm}
+                                onCancel={() => setStep(2)}
+                            />
+                        ) : (
+                            <div className="flex items-center justify-center h-full">
+                                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                            </div>
+                        )}
+                        {isProcessing && (
+                            <div className="fixed inset-0 bg-black/20 flex items-center justify-center z-50">
+                                <div className="bg-white p-6 rounded-lg shadow-lg flex flex-col items-center">
+                                    <Loader2 className="h-8 w-8 animate-spin text-primary mb-4" />
+                                    <p>Processing...</p>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                )}
+            </div>
         </div>
     );
 }

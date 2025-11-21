@@ -22,21 +22,17 @@ export interface ColumnMapping {
     correctAnswer: string;
 }
 
-export function ColumnMapper({ data, onConfirm, onCancel }: ColumnMapperProps) {
-    const [mapping, setMapping] = useState<ColumnMapping>({
-        questionText: '',
-        questionType: '',
-        optionA: '',
-        optionB: '',
-        optionC: '',
-        optionD: '',
-        correctAnswer: '',
-    });
+import { predictMapping } from '@/lib/parsers/smart-mapper';
 
+export function ColumnMapper({ data, onConfirm, onCancel }: ColumnMapperProps) {
     const columns = useMemo(() => {
         if (!data || data.length === 0) return [];
         return Object.keys(data[0]);
     }, [data]);
+
+    const [mapping, setMapping] = useState<ColumnMapping>(() => {
+        return predictMapping(columns);
+    });
 
     const previewData = useMemo(() => {
         return data.slice(0, 5);
@@ -47,18 +43,33 @@ export function ColumnMapper({ data, onConfirm, onCancel }: ColumnMapperProps) {
     };
 
     const isValid = mapping.questionText && mapping.correctAnswer;
+    const isAutoMatched = useMemo(() => {
+        // Simple check: if we have at least question and answer mapped initially, it's likely auto-matched
+        // But since we initialize state with it, we can just check if it's valid now and we haven't touched it?
+        // Let's just show "Auto-mapped" if we have values.
+        return mapping.questionText !== '' || mapping.correctAnswer !== '';
+    }, []); // Only run once on mount effectively if we used a ref, but here it updates. 
+    // Actually, let's just show a badge if we have a valid mapping.
 
     return (
         <div className="space-y-6">
             <Card>
-                <CardHeader>
+                <CardHeader className="flex flex-row items-center justify-between">
                     <CardTitle>Map Columns</CardTitle>
+                    {isAutoMatched && (
+                        <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full font-medium">
+                            Auto-detected columns
+                        </span>
+                    )}
                 </CardHeader>
                 <CardContent>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
                         <div className="space-y-2">
                             <Label>Question Text *</Label>
-                            <Select onValueChange={(v: string) => handleMappingChange('questionText', v)}>
+                            <Select
+                                value={mapping.questionText || undefined}
+                                onValueChange={(v: string) => handleMappingChange('questionText', v)}
+                            >
                                 <SelectTrigger>
                                     <SelectValue placeholder="Select column" />
                                 </SelectTrigger>
@@ -72,7 +83,10 @@ export function ColumnMapper({ data, onConfirm, onCancel }: ColumnMapperProps) {
 
                         <div className="space-y-2">
                             <Label>Question Type</Label>
-                            <Select onValueChange={(v) => handleMappingChange('questionType', v)}>
+                            <Select
+                                value={mapping.questionType || undefined}
+                                onValueChange={(v) => handleMappingChange('questionType', v)}
+                            >
                                 <SelectTrigger>
                                     <SelectValue placeholder="Select column (Optional)" />
                                 </SelectTrigger>
@@ -89,7 +103,10 @@ export function ColumnMapper({ data, onConfirm, onCancel }: ColumnMapperProps) {
 
                         <div className="space-y-2">
                             <Label>Correct Answer *</Label>
-                            <Select onValueChange={(v) => handleMappingChange('correctAnswer', v)}>
+                            <Select
+                                value={mapping.correctAnswer || undefined}
+                                onValueChange={(v) => handleMappingChange('correctAnswer', v)}
+                            >
                                 <SelectTrigger>
                                     <SelectValue placeholder="Select column" />
                                 </SelectTrigger>
@@ -103,7 +120,10 @@ export function ColumnMapper({ data, onConfirm, onCancel }: ColumnMapperProps) {
 
                         <div className="space-y-2">
                             <Label>Option A</Label>
-                            <Select onValueChange={(v) => handleMappingChange('optionA', v)}>
+                            <Select
+                                value={mapping.optionA || undefined}
+                                onValueChange={(v) => handleMappingChange('optionA', v)}
+                            >
                                 <SelectTrigger>
                                     <SelectValue placeholder="Select column" />
                                 </SelectTrigger>
@@ -117,7 +137,10 @@ export function ColumnMapper({ data, onConfirm, onCancel }: ColumnMapperProps) {
 
                         <div className="space-y-2">
                             <Label>Option B</Label>
-                            <Select onValueChange={(v) => handleMappingChange('optionB', v)}>
+                            <Select
+                                value={mapping.optionB || undefined}
+                                onValueChange={(v) => handleMappingChange('optionB', v)}
+                            >
                                 <SelectTrigger>
                                     <SelectValue placeholder="Select column" />
                                 </SelectTrigger>
@@ -131,7 +154,10 @@ export function ColumnMapper({ data, onConfirm, onCancel }: ColumnMapperProps) {
 
                         <div className="space-y-2">
                             <Label>Option C</Label>
-                            <Select onValueChange={(v) => handleMappingChange('optionC', v)}>
+                            <Select
+                                value={mapping.optionC || undefined}
+                                onValueChange={(v) => handleMappingChange('optionC', v)}
+                            >
                                 <SelectTrigger>
                                     <SelectValue placeholder="Select column" />
                                 </SelectTrigger>
@@ -145,7 +171,10 @@ export function ColumnMapper({ data, onConfirm, onCancel }: ColumnMapperProps) {
 
                         <div className="space-y-2">
                             <Label>Option D</Label>
-                            <Select onValueChange={(v) => handleMappingChange('optionD', v)}>
+                            <Select
+                                value={mapping.optionD || undefined}
+                                onValueChange={(v) => handleMappingChange('optionD', v)}
+                            >
                                 <SelectTrigger>
                                     <SelectValue placeholder="Select column" />
                                 </SelectTrigger>

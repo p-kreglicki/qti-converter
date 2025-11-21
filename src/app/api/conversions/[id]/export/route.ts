@@ -6,8 +6,9 @@ import { QtiGenerator } from '@/lib/export/qti-generator';
 
 export async function GET(
     request: NextRequest,
-    { params }: { params: { id: string } }
+    { params }: { params: Promise<{ id: string }> }
 ) {
+    const { id } = await params;
     const cookieStore = await cookies();
 
     const supabase = createServerClient(
@@ -36,12 +37,12 @@ export async function GET(
 
     try {
         // Verify ownership
-        const conversion = await getConversion(params.id);
+        const conversion = await getConversion(id, supabase);
         if (conversion.user_id !== user.id) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 
-        const questions = await getConversionQuestions(params.id);
+        const questions = await getConversionQuestions(id, supabase);
         const format = request.nextUrl.searchParams.get('format') || 'qti';
 
         let fileBuffer: Buffer;

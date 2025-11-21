@@ -1,16 +1,42 @@
 'use client';
 
+import { useState, useMemo } from "react";
 import { Question } from "@/lib/db/types";
-import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { cn } from "@/lib/utils";
-import { CheckCircle2, AlertCircle } from "lucide-react";
+import { QuestionEditor } from "./question-editor";
+import { Input } from "@/components/ui/input";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
+import { Search, Filter, ArrowUpDown } from "lucide-react";
 
 interface QuestionListProps {
     questions: Question[];
 }
 
 export function QuestionList({ questions }: QuestionListProps) {
+    const [search, setSearch] = useState("");
+    const [typeFilter, setTypeFilter] = useState<string>("all");
+    const [sortOrder, setSortOrder] = useState<"original" | "updated">("original");
+
+    const filteredQuestions = useMemo(() => {
+        return questions
+            .filter(q => {
+                const matchesSearch = q.question_text.toLowerCase().includes(search.toLowerCase());
+                const matchesType = typeFilter === "all" || q.question_type === typeFilter;
+                return matchesSearch && matchesType;
+            })
+            .sort((a, b) => {
+                if (sortOrder === "updated") {
+                    return new Date(b.updated_at || b.created_at).getTime() - new Date(a.updated_at || a.created_at).getTime();
+                }
+                return (a.original_row_number || 0) - (b.original_row_number || 0);
+            });
+    }, [questions, search, typeFilter, sortOrder]);
+
     if (questions.length === 0) {
         return (
             <div className="flex flex-col items-center justify-center h-full text-muted-foreground p-8">
@@ -20,63 +46,60 @@ export function QuestionList({ questions }: QuestionListProps) {
     }
 
     return (
-        <div className="divide-y">
-            {questions.map((question, index) => (
-                <div key={question.id} className="p-4 hover:bg-gray-50 transition-colors group">
-                    <div className="flex items-start gap-4">
-                        <div className="flex-none w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-sm font-medium text-gray-600">
-                            {index + 1}
-                        </div>
-
-                        <div className="flex-1 space-y-2">
-                            <div className="flex items-start justify-between">
-                                <div className="prose prose-sm max-w-none">
-                                    <p className="font-medium text-gray-900">{question.question_text}</p>
-                                </div>
-                                <div className="flex items-center space-x-2 flex-none ml-4">
-                                    <Badge variant="secondary" className="text-xs">
-                                        {question.question_type.replace('_', ' ')}
-                                    </Badge>
-                                    {question.had_pii && (
-                                        <Badge variant="destructive" className="text-xs">
-                                            PII Detected
-                                        </Badge>
-                                    )}
-                                </div>
-                            </div>
-
-                            {/* Answer Options */}
-                            <div className="grid gap-2 mt-2">
-                                {question.answer_options?.map((option, i) => (
-                                    <div
-                                        key={i}
-                                        className={cn(
-                                            "text-sm p-2 rounded border flex items-center gap-2",
-                                            option.is_correct
-                                                ? "bg-green-50 border-green-200 text-green-900"
-                                                : "bg-white border-gray-200 text-gray-700"
-                                        )}
-                                    >
-                                        {option.is_correct ? (
-                                            <CheckCircle2 className="h-4 w-4 text-green-600 flex-none" />
-                                        ) : (
-                                            <div className="w-4 h-4 flex-none" />
-                                        )}
-                                        <span>{option.text}</span>
-                                    </div>
-                                ))}
-                            </div>
-
-                            {/* Metadata Footer */}
-                            <div className="flex items-center gap-4 text-xs text-muted-foreground mt-2">
-                                {question.topic && <span>Topic: {question.topic}</span>}
-                                {question.difficulty && <span>Difficulty: {question.difficulty}</span>}
-                                {question.blooms_level && <span>Bloom's: {question.blooms_level}</span>}
-                            </div>
-                        </div>
-                    </div>
+        <div className="flex flex-col h-full">
+            {/* Toolbar */}
+            <div className="p-4 border-b bg-white flex items-center gap-4 sticky top-0 z-10">
+                <div className="relative flex-1 max-w-sm">
+                    <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                    <Input
+                        placeholder="Search questions..."
+                        className="pl-9"
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                    />
                 </div>
-            ))}
+                <Select value={typeFilter} onValueChange={setTypeFilter}>
+                    <SelectTrigger className="w-[180px]">
+                        <Filter className="mr-2 h-4 w-4 text-muted-foreground" />
+                        <SelectValue placeholder="Filter by type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="all">All Types</SelectItem>
+                        <SelectItem value="multiple_choice">Multiple Choice</SelectItem>
+                        <SelectItem value="true_false">True/False</SelectItem>
+                        <SelectItem value="multiple_response">Multiple Response</SelectItem>
+                    </SelectContent>
+                </Select>
+                <Select value={sortOrder} onValueChange={(v: any) => setSortOrder(v)}>
+                    <SelectTrigger className="w-[180px]">
+                        <ArrowUpDown className="mr-2 h-4 w-4 text-muted-foreground" />
+                        <SelectValue placeholder="Sort by" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="original">Original Order</SelectItem>
+                        <SelectItem value="updated">Last Updated</SelectItem>
+                    </SelectContent>
+                </Select>
+                <div className="ml-auto text-sm text-muted-foreground">
+                    Showing {filteredQuestions.length} of {questions.length}
+                </div>
+            </div>
+
+            {/* List */}
+            <div className="divide-y">
+                {filteredQuestions.map((question, index) => (
+                    <QuestionEditor
+                        key={question.id}
+                        question={question}
+                        index={sortOrder === 'original' ? (question.original_row_number || index + 1) - 1 : index}
+                    />
+                ))}
+                {filteredQuestions.length === 0 && (
+                    <div className="p-8 text-center text-muted-foreground">
+                        No questions match your filters.
+                    </div>
+                )}
+            </div>
         </div>
     );
 }

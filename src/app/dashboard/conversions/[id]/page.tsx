@@ -9,7 +9,8 @@ import Link from "next/link";
 import { QuestionList } from "@/components/questions/question-list";
 import { ExportModal } from "@/components/export/export-modal";
 
-export default async function ConversionPage({ params }: { params: { id: string } }) {
+export default async function ConversionPage({ params }: { params: Promise<{ id: string }> }) {
+    const { id } = await params;
     const cookieStore = await cookies();
 
     const supabase = createServerClient(
@@ -38,13 +39,13 @@ export default async function ConversionPage({ params }: { params: { id: string 
     }
 
     try {
-        const conversion = await getConversion(params.id, supabase);
+        const conversion = await getConversion(id, supabase);
 
         if (conversion.user_id !== user.id) {
             redirect("/dashboard");
         }
 
-        const questions = await getConversionQuestions(params.id, supabase);
+        const questions = await getConversionQuestions(id, supabase);
 
         return (
             <div className="space-y-6 h-[calc(100vh-100px)] flex flex-col">
@@ -73,7 +74,7 @@ export default async function ConversionPage({ params }: { params: { id: string 
                             <Sparkles className="mr-2 h-4 w-4" />
                             AI Enhance
                         </Button>
-                        <ExportModal conversionId={params.id} />
+                        <ExportModal conversionId={id} />
                     </div>
                 </div>
 

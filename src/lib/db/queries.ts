@@ -184,8 +184,9 @@ export async function createQuestions(questions: QuestionInsert[]) {
     return data as Question[];
 }
 
-export async function updateQuestion(questionId: string, updates: QuestionUpdate) {
-    const { data, error } = await supabase
+export async function updateQuestion(questionId: string, updates: QuestionUpdate, client?: SupabaseClient) {
+    const sb = client || supabase;
+    const { data, error } = await sb
         .from('questions')
         .update(updates)
         .eq('id', questionId)

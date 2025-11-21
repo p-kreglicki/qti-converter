@@ -29,7 +29,9 @@ export interface Profile {
 export interface Conversion {
     id: string;
     user_id: string;
+    title: string;
     original_filename: string;
+    file_type: 'csv' | 'excel';
     file_size_bytes: number;
     file_url: string;
     status: ConversionStatus;

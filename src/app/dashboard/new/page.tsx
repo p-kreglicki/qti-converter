@@ -185,6 +185,7 @@ export default function NewConversionPage() {
                     title: file.name.split('.')[0],
                     filePath,
                     fileName: file.name,
+                    fileSize: file.size,
                     fileType: file.name.endsWith('csv') ? 'csv' : 'excel',
                     questions: questions,
                     mapping

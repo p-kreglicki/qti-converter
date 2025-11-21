@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-
 import { cookies } from 'next/headers';
 import { createServerClient, type CookieOptions } from '@supabase/ssr';
 
@@ -12,13 +11,15 @@ export async function POST(request: NextRequest) {
             process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
             {
                 cookies: {
-                    get(name: string) {
-                        return cookieStore.get(name)?.value;
+                    getAll() {
+                        return cookieStore.getAll()
                     },
-                    set(name: string, value: string, options: CookieOptions) {
-                        // API route shouldn't set cookies usually, but needed for auth check
-                    },
-                    remove(name: string, options: CookieOptions) {
+                    setAll(cookiesToSet) {
+                        try {
+                            cookiesToSet.forEach(({ name, value, options }) =>
+                                cookieStore.set(name, value, options)
+                            )
+                        } catch { }
                     },
                 },
             }
@@ -31,7 +32,7 @@ export async function POST(request: NextRequest) {
         }
 
         const body = await request.json();
-        const { title, filePath, fileName, fileType, questions, mapping } = body;
+        const { title, filePath, fileName, fileSize, fileType, questions, mapping } = body;
 
         if (!title || !filePath || !questions) {
             return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
@@ -43,41 +44,41 @@ export async function POST(request: NextRequest) {
             .insert({
                 user_id: user.id,
                 title: title,
-                source_format: fileType === 'csv' ? 'csv' : 'excel',
-                file_path: filePath,
-                file_name: fileName,
+                original_filename: fileName,
+                file_size_bytes: fileSize || 0,
+                file_url: filePath,
+                file_type: fileType === 'csv' ? 'csv' : 'excel',
                 status: 'processing',
                 total_questions: questions.length,
-                processed_questions: 0,
-                mapping_configuration: mapping
+                // processed_questions: 0, // Not in schema
+                // mapping_configuration: mapping // Not in schema
+                conversion_mode: 'privacy', // Default
+                ai_enhancement_enabled: true // Default
             })
             .select()
             .single();
 
         if (conversionError) {
             console.error('Conversion creation error:', conversionError);
-            return NextResponse.json({ error: 'Failed to create conversion' }, { status: 500 });
+            return NextResponse.json({ error: 'Failed to create conversion: ' + conversionError.message }, { status: 500 });
         }
 
         // 2. Create Question Records
-        // We'll insert them in batches to be safe, though 1000 isn't huge.
         const questionsToInsert = questions.map((q: any, index: number) => ({
             conversion_id: conversion.id,
-            user_id: user.id,
-            original_text: q.questionText,
+            // user_id: user.id, // Not in schema
+            question_text: q.questionText,
             question_type: q.questionType || 'multiple_choice',
-            answer_options: {
-                options: [
-                    { id: 'A', text: q.optionA },
-                    { id: 'B', text: q.optionB },
-                    { id: 'C', text: q.optionC },
-                    { id: 'D', text: q.optionD },
-                ],
-                correctAnswer: q.correctAnswer
-            },
-            blooms_level: 'remember', // Default, will be updated by AI
-            status: 'pending',
-            order_index: index
+            answer_options: [
+                { id: 'A', text: q.optionA, is_correct: q.correctAnswer === 'A' },
+                { id: 'B', text: q.optionB, is_correct: q.correctAnswer === 'B' },
+                { id: 'C', text: q.optionC, is_correct: q.correctAnswer === 'C' },
+                { id: 'D', text: q.optionD, is_correct: q.correctAnswer === 'D' },
+            ],
+            correct_answer: q.correctAnswer,
+            blooms_level: 'remember', // Default
+            original_row_number: index + 1, // 1-based
+            // status: 'pending', // Not in schema
         }));
 
         const { error: questionsError } = await supabase
@@ -86,21 +87,18 @@ export async function POST(request: NextRequest) {
 
         if (questionsError) {
             console.error('Questions insertion error:', questionsError);
-            // Should probably rollback conversion or mark as error
-            await supabase.from('conversions').update({ status: 'error', error_details: { message: 'Failed to save questions' } }).eq('id', conversion.id);
-            return NextResponse.json({ error: 'Failed to save questions' }, { status: 500 });
+            // Mark as error
+            await supabase.from('conversions').update({ status: 'failed', error_message: 'Failed to save questions' }).eq('id', conversion.id);
+            return NextResponse.json({ error: 'Failed to save questions: ' + questionsError.message }, { status: 500 });
         }
 
-        // 3. Trigger AI Processing (Background)
-        // For MVP, we might just mark it as 'ready_for_review' or trigger a function.
-        // Let's mark it as 'pending_analysis' or similar.
-        // The task list says "AI-powered PII detection" is next phase.
-        // So for now, we just save them.
+        // Update status to completed for now since we don't have async processing yet
+        await supabase.from('conversions').update({ status: 'completed' }).eq('id', conversion.id);
 
         return NextResponse.json({ conversionId: conversion.id });
 
-    } catch (error) {
+    } catch (error: any) {
         console.error('API Error:', error);
-        return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+        return NextResponse.json({ error: 'Internal Server Error: ' + error.message }, { status: 500 });
     }
 }

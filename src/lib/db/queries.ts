@@ -55,8 +55,9 @@ export async function updateProfile(userId: string, updates: ProfileUpdate) {
 
 // Conversion Queries
 
-export async function getConversion(conversionId: string) {
-    const { data, error } = await supabase
+export async function getConversion(conversionId: string, client?: SupabaseClient) {
+    const sb = client || supabase;
+    const { data, error } = await sb
         .from('conversions')
         .select('*')
         .eq('id', conversionId)
@@ -66,8 +67,11 @@ export async function getConversion(conversionId: string) {
     return data as Conversion;
 }
 
-export async function getUserConversions(userId: string) {
-    const { data, error } = await supabase
+import { SupabaseClient } from '@supabase/supabase-js';
+
+export async function getUserConversions(userId: string, client?: SupabaseClient) {
+    const sb = client || supabase;
+    const { data, error } = await sb
         .from('conversions')
         .select('*')
         .eq('user_id', userId)
@@ -147,8 +151,9 @@ export async function getQuestion(questionId: string) {
     return data as Question;
 }
 
-export async function getConversionQuestions(conversionId: string) {
-    const { data, error } = await supabase
+export async function getConversionQuestions(conversionId: string, client?: SupabaseClient) {
+    const sb = client || supabase;
+    const { data, error } = await sb
         .from('questions')
         .select('*')
         .eq('conversion_id', conversionId)

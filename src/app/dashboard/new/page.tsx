@@ -7,11 +7,11 @@ import { ColumnMapper, ColumnMapping } from '@/components/upload/column-mapper';
 import { getParserForFile } from '@/lib/parsers';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Steps } from '@/components/ui/steps'; // Need to create this or use simple text
+import { Steps } from '@/components/ui/steps';
 import { toast } from 'sonner';
 import { Loader2 } from 'lucide-react';
 
-import { PiiReviewer } from '@/components/pii/pii-reviewer';
+import { PiiReviewer, PiiReviewItem } from '@/components/pii/pii-reviewer';
 import { RegexPIIDetector } from '@/lib/pii/regex-detector';
 import { AIPIIDetector } from '@/lib/pii/ai-detector';
 import { PIIDetectionResult } from '@/lib/pii/types';
@@ -26,8 +26,7 @@ export default function NewConversionPage() {
     const [mappingConfig, setMappingConfig] = useState<ColumnMapping | null>(null);
 
     // PII State
-    const [piiResults, setPiiResults] = useState<Map<number, PIIDetectionResult>>(new Map());
-    const [currentPiiIndex, setCurrentPiiIndex] = useState<number>(0);
+    const [piiReviewQueue, setPiiReviewQueue] = useState<PiiReviewItem[]>([]);
     const [processedQuestions, setProcessedQuestions] = useState<any[]>([]);
 
     const handleFileSelect = async (selectedFile: File) => {
@@ -74,44 +73,49 @@ export default function NewConversionPage() {
                     optionB: row[mapping.optionB],
                     optionC: row[mapping.optionC],
                     optionD: row[mapping.optionD],
-                    correctAnswer: row[mapping.correctAnswer]
+                    correctAnswer: row[mapping.correctAnswer],
+                    explanation: row[mapping.explanation]
                 };
             });
             setMappedQuestions(mapped);
 
-            // Run PII Detection on a sample or all?
-            // For MVP, let's run on all but only show review if PII is found.
-            // To save time/credits, maybe just Regex first?
-            // User requested AI, so we should use AI.
-            // But running AI on 1000 rows is slow and expensive.
-            // Let's run on the first 5 rows for demo/MVP purposes, or just run Regex on all + AI on sample.
-            // Actually, let's run Regex on ALL, and AI on a sample (or all if small).
-
             const regexDetector = new RegexPIIDetector();
-            // const aiDetector = new AIPIIDetector(); // Commented out to save credits/time for now unless explicitly needed
+            const queue: PiiReviewItem[] = [];
 
-            const results = new Map<number, PIIDetectionResult>();
-            let hasPii = false;
+            // Fields to scan
+            const fieldsToScan = [
+                { key: 'questionText', label: 'Question Text' },
+                { key: 'optionA', label: 'Option A' },
+                { key: 'optionB', label: 'Option B' },
+                { key: 'optionC', label: 'Option C' },
+                { key: 'optionD', label: 'Option D' },
+                { key: 'explanation', label: 'Explanation' }
+            ];
 
-            // Process sequentially or parallel?
             for (let i = 0; i < mapped.length; i++) {
                 const q = mapped[i];
-                const textToScan = `${q.questionText} ${q.optionA} ${q.optionB} ${q.optionC} ${q.optionD}`;
 
-                const res = await regexDetector.detect(textToScan);
-                if (res.hasPII) {
-                    results.set(i, res);
-                    hasPii = true;
+                for (const field of fieldsToScan) {
+                    const text = (q as any)[field.key];
+                    if (!text || typeof text !== 'string') continue;
+
+                    const res = await regexDetector.detect(text);
+                    if (res.hasPII) {
+                        queue.push({
+                            questionIndex: i,
+                            field: field.key,
+                            fieldName: field.label,
+                            text: text,
+                            result: res
+                        });
+                    }
                 }
             }
 
-            setPiiResults(results);
+            setPiiReviewQueue(queue);
 
-            if (hasPii) {
+            if (queue.length > 0) {
                 setStep(3);
-                // Find first index with PII
-                const firstIndex = Array.from(results.keys())[0];
-                setCurrentPiiIndex(firstIndex);
             } else {
                 // No PII, proceed directly to upload
                 await uploadAndCreateConversion(mapped, mapping);
@@ -125,33 +129,25 @@ export default function NewConversionPage() {
         }
     };
 
-    const handlePiiConfirm = async (finalRedactedText: string) => {
-        // Update the question text with redacted version
-        // Wait, the redacted text combines question and options. We need to know which part was redacted.
-        // This is tricky. The PiiReviewer takes the whole text.
-        // For MVP, let's assume we just redact the Question Text for simplicity in the UI, 
-        // or we need a more complex PiiReviewer that handles fields.
-
-        // SIMPLIFICATION: We will only scan and redact Question Text for now.
-        // If we scanned options, we'd need to split them back.
-
-        const currentQ = mappedQuestions[currentPiiIndex];
-        const updatedQ = { ...currentQ, questionText: finalRedactedText };
+    const handlePiiConfirm = async (redactions: Record<string, string>) => {
+        // redactions is a map of "questionIndex-field" -> redactedText
 
         const newMapped = [...mappedQuestions];
-        newMapped[currentPiiIndex] = updatedQ;
+
+        Object.entries(redactions).forEach(([key, redactedText]) => {
+            const [qIndexStr, field] = key.split('-');
+            const qIndex = parseInt(qIndexStr);
+
+            if (!isNaN(qIndex) && newMapped[qIndex]) {
+                newMapped[qIndex] = {
+                    ...newMapped[qIndex],
+                    [field]: redactedText
+                };
+            }
+        });
+
         setMappedQuestions(newMapped);
-
-        // Move to next PII result
-        const indices = Array.from(piiResults.keys());
-        const currentPos = indices.indexOf(currentPiiIndex);
-
-        if (currentPos < indices.length - 1) {
-            setCurrentPiiIndex(indices[currentPos + 1]);
-        } else {
-            // All reviewed
-            await uploadAndCreateConversion(newMapped, mappingConfig!);
-        }
+        await uploadAndCreateConversion(newMapped, mappingConfig!);
     };
 
     const uploadAndCreateConversion = async (questions: any[], mapping: ColumnMapping) => {
@@ -263,11 +259,10 @@ export default function NewConversionPage() {
                 )}
 
                 {step === 3 && (
-                    <div className="h-full">
-                        {piiResults.has(currentPiiIndex) ? (
+                    <div className="h-full flex flex-col">
+                        {piiReviewQueue.length > 0 ? (
                             <PiiReviewer
-                                originalText={mappedQuestions[currentPiiIndex].questionText} // Only scanning Question Text for now
-                                detectionResult={piiResults.get(currentPiiIndex)!}
+                                items={piiReviewQueue}
                                 onConfirm={handlePiiConfirm}
                                 onCancel={() => setStep(2)}
                             />

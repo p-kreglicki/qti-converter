@@ -20,6 +20,7 @@ export interface ColumnMapping {
     optionC: string;
     optionD: string;
     correctAnswer: string;
+    explanation: string;
 }
 
 import { predictMapping } from '@/lib/parsers/smart-mapper';
@@ -35,7 +36,7 @@ export function ColumnMapper({ data, onConfirm, onCancel }: ColumnMapperProps) {
     });
 
     const previewData = useMemo(() => {
-        return data.slice(0, 5);
+        return data.slice(0, 50);
     }, [data]);
 
     const handleMappingChange = (field: keyof ColumnMapping, value: string) => {
@@ -185,6 +186,23 @@ export function ColumnMapper({ data, onConfirm, onCancel }: ColumnMapperProps) {
                                 </SelectContent>
                             </Select>
                         </div>
+
+                        <div className="space-y-2">
+                            <Label>Explanation</Label>
+                            <Select
+                                value={mapping.explanation || undefined}
+                                onValueChange={(v) => handleMappingChange('explanation', v)}
+                            >
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Select column (Optional)" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {columns.map(col => (
+                                        <SelectItem key={col} value={col}>{col}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
                     </div>
 
                     <div className="border rounded-md overflow-hidden">
@@ -202,7 +220,7 @@ export function ColumnMapper({ data, onConfirm, onCancel }: ColumnMapperProps) {
                                     {previewData.map((row, i) => (
                                         <TableRow key={i}>
                                             {columns.map(col => (
-                                                <TableCell key={col} className="whitespace-nowrap max-w-[200px] truncate">
+                                                <TableCell key={col} className="max-w-[300px] break-words">
                                                     {String(row[col] || '')}
                                                 </TableCell>
                                             ))}

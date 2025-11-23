@@ -16,8 +16,9 @@ const PATTERNS: RegexPattern[] = [
     },
     {
         type: 'PHONE',
-        // Matches: (123) 456-7890, 123-456-7890, 123.456.7890, +1 123 456 7890
-        pattern: /(?:\+?1[-. ]?)?\(?([0-9]{3})\)?[-. ]?([0-9]{3})[-. ]?([0-9]{4})\b/g,
+        // Matches: (123) 456-7890, 123-456-7890, 123.456.7890, +1 123 456 7890, and 555-0199 (7 digit)
+        // Updated to support 7-digit numbers: \b\d{3}[-. ]\d{4}\b
+        pattern: /(?:\+?1[-. ]?)?\(?([0-9]{3})\)?[-. ]?([0-9]{3})[-. ]?([0-9]{4})\b|\b[0-9]{3}[-. ][0-9]{4}\b/g,
         confidence: 0.85
     },
     {
@@ -37,6 +38,18 @@ const PATTERNS: RegexPattern[] = [
         // IPv4
         pattern: /\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b/g,
         confidence: 0.80
+    },
+    {
+        type: 'NAME',
+        // Heuristic: Honorifics followed by capitalized word
+        pattern: /\b(Dr\.|Mr\.|Mrs\.|Ms\.|Prof\.|Rev\.)\s+[A-Z][a-z]+\b/g,
+        confidence: 0.70
+    },
+    {
+        type: 'ADDRESS',
+        // Heuristic: Number followed by words and a street suffix
+        pattern: /\b\d+\s+[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*\s+(St|Ave|Rd|Blvd|Way|Lane|Drive|Dr|Ln|Ct|Pl|Terrace|Place|Street|Avenue|Road|Boulevard)\.?\b/g,
+        confidence: 0.65
     }
 ];
 

@@ -8,7 +8,8 @@ const ALIASES: Record<keyof ColumnMapping, string[]> = {
     optionB: ['option b', 'choice b', 'b)', 'answer b', 'b', 'option_b', 'distractor 2', 'option 2'],
     optionC: ['option c', 'choice c', 'c)', 'answer c', 'c', 'option_c', 'distractor 3', 'option 3'],
     optionD: ['option d', 'choice d', 'd)', 'answer d', 'd', 'option_d', 'distractor 4', 'option 4'],
-    correctAnswer: ['correct', 'correct answer', 'answer', 'key', 'solution', 'correct_answer', 'ans', 'correct option']
+    correctAnswer: ['correct', 'correct answer', 'answer', 'key', 'solution', 'correct_answer', 'ans', 'correct option'],
+    explanation: ['explanation', 'feedback', 'rationale', 'reason', 'why', 'comment', 'notes']
 };
 
 export function predictMapping(headers: string[]): ColumnMapping {
@@ -19,7 +20,8 @@ export function predictMapping(headers: string[]): ColumnMapping {
         optionB: '',
         optionC: '',
         optionD: '',
-        correctAnswer: ''
+        correctAnswer: '',
+        explanation: ''
     };
 
     const usedHeaders = new Set<string>();
@@ -60,6 +62,7 @@ export function predictMapping(headers: string[]): ColumnMapping {
     mapping.optionB = findMatch('optionB');
     mapping.optionC = findMatch('optionC');
     mapping.optionD = findMatch('optionD');
+    mapping.explanation = findMatch('explanation');
 
     return mapping;
 }
